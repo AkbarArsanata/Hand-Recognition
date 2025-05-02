@@ -1,7 +1,14 @@
 streamlit==1.32.2
-opencv-python-headless==4.9.0.80
-mediapipe==0.10.9
-tensorflow-cpu==2.15.0  # Use CPU version for cloud deployment
-numpy==1.26.3
-Pillow==10.1.0
-protobuf==3.20.3  # Specific version for MediaPipe compatibility
+opencv-python-headless==4.7.0.72
+mediapipe==0.10.10
+tensorflow==2.12.0
+protobuf==3.20.3
+numpy==1.23.5
+Pillow==9.5.0
+matplotlib==3.7.1
+scipy==1.10.1
+scikit-learn==1.2.2
+pandas==1.5.3
+h5py==3.13.0
+grpcio==1.71.0
+absl-py==2.2.2
