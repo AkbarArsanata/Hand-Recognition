@@ -1,10 +1,18 @@
 import streamlit as st
-import cv2
 import numpy as np
 import mediapipe as mp
 from tensorflow.keras.models import load_model
 import json
 from PIL import Image
+import os
+import sys
+import subprocess
+
+try:
+    import cv2
+except ImportError:
+    subprocess.check_call([sys.executable, "-m", "pip", "install", "opencv-python-headless"])
+    import cv2
 
 # Load model configuration
 with open('model_config.json', 'r') as f:
