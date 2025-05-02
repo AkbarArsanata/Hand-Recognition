@@ -3,12 +3,10 @@ import numpy as np
 import mediapipe as mp
 from tensorflow.keras.models import load_model
 import json
-from PIL import Image, ImageDraw
+from PIL import Image
 import os
 import cv2
 import time
-import av
-from streamlit_webrtc import webrtc_streamer, WebRtcMode, RTCConfiguration
 import pandas as pd
 import plotly.express as px
 
@@ -17,18 +15,7 @@ st.set_page_config(
     page_title="GestureSense Pro | Hand Gesture Recognition",
     page_icon="✨",
     layout="wide",
-    initial_sidebar_state="expanded",
-    menu_items={
-        'About': """
-        ## GestureSense Pro - Hand Gesture Recognition
-        
-        **Author**: Ibrahim Akbar Arsanata  
-        **LinkedIn**: [linkedin.com/in/ibrahim-akbar-arsanata](https://www.linkedin.com/in/ibrahim-akbar-arsanata)  
-        **Email**: arsanataibrahim9@gmail.com
-        
-        Advanced hand gesture recognition using MediaPipe and TensorFlow with real-time performance analytics.
-        """
-    }
+    initial_sidebar_state="expanded"
 )
 
 # Custom CSS for styling
@@ -45,25 +32,18 @@ st.markdown("""
         font-size: 1.3em;
         margin-bottom: 1em;
     }
-    .sidebar .sidebar-content {
-        background-color: #f8f9fa;
-    }
-    .footer {
-        position: fixed;
-        left: 0;
-        bottom: 0;
-        width: 100%;
-        background-color: white;
-        text-align: center;
-        padding: 10px;
-        border-top: 1px solid #e1e4e8;
-    }
     .feature-card {
         border-radius: 10px;
         padding: 15px;
         margin-bottom: 15px;
         background-color: #f0f2f6;
         box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+    }
+    .footer {
+        text-align: center;
+        padding: 10px;
+        margin-top: 30px;
+        border-top: 1px solid #e1e4e8;
     }
 </style>
 """, unsafe_allow_html=True)
@@ -110,12 +90,13 @@ GESTURE_GUIDE = {
 }
 
 # Performance metrics
-performance_data = {
-    "timestamp": [],
-    "gesture": [],
-    "confidence": [],
-    "processing_time": []
-}
+if 'performance_data' not in st.session_state:
+    st.session_state.performance_data = {
+        "timestamp": [],
+        "gesture": [],
+        "confidence": [],
+        "processing_time": []
+    }
 
 # Preprocessing function
 def preprocess_image(img):
@@ -164,10 +145,10 @@ def process_frame(frame, confidence_threshold):
                 gesture = class_names[predicted_class]
                 
                 # Store performance data
-                performance_data["timestamp"].append(time.time())
-                performance_data["gesture"].append(gesture)
-                performance_data["confidence"].append(confidence)
-                performance_data["processing_time"].append(time.time() - start_time)
+                st.session_state.performance_data["timestamp"].append(time.time())
+                st.session_state.performance_data["gesture"].append(gesture)
+                st.session_state.performance_data["confidence"].append(confidence)
+                st.session_state.performance_data["processing_time"].append(time.time() - start_time)
 
             # Draw landmarks and bounding box
             mp_drawing.draw_landmarks(
@@ -185,8 +166,7 @@ def process_frame(frame, confidence_threshold):
     
     return cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
 
-# Author footer component
-def author_footer():
+def show_author_info():
     st.markdown("""
     <div class="footer">
         <p>Developed by <strong>Ibrahim Akbar Arsanata</strong> | 
@@ -195,14 +175,12 @@ def author_footer():
     </div>
     """, unsafe_allow_html=True)
 
-# Main app function
 def main():
     st.markdown('<p class="header">GestureSense Pro</p>', unsafe_allow_html=True)
     st.markdown('<p class="subheader">Advanced Hand Gesture Recognition System</p>', unsafe_allow_html=True)
     
     # Sidebar with author info and settings
     with st.sidebar:
-        st.image("https://via.placeholder.com/150", caption="Ibrahim Akbar Arsanata", use_column_width=True)
         st.markdown("""
         ### About the Developer
         **Ibrahim Akbar Arsanata**  
@@ -225,45 +203,30 @@ def main():
             st.warning("Running in demo mode (model not fully loaded)")
 
     # Main content tabs
-    tab1, tab2, tab3, tab4 = st.tabs(["Real-Time", "Gesture Guide", "Analytics", "About"])
+    tab1, tab2, tab3 = st.tabs(["Real-Time", "Gesture Guide", "Analytics"])
     
     with tab1:
         st.subheader("Real-Time Gesture Recognition")
         
-        col1, col2 = st.columns([3, 1])
+        # Use regular camera input instead of WebRTC
+        img_file_buffer = st.camera_input("Show your hand to the camera")
         
-        with col1:
-            # WebRTC streamer for better real-time performance
-            ctx = webrtc_streamer(
-                key="example",
-                mode=WebRtcMode.SENDRECV,
-                rtc_configuration=RTCConfiguration(
-                    {"iceServers": [{"urls": ["stun:stun.l.google.com:19302"]}]}
-                ),
-                video_frame_callback=lambda frame: process_frame(frame.to_ndarray(format="bgr24"), confidence_threshold),
-                media_stream_constraints={"video": True, "audio": False},
-            )
+        if img_file_buffer is not None:
+            image = Image.open(img_file_buffer)
+            frame = np.array(image)
+            processed_frame = process_frame(frame, confidence_threshold)
             
-            if not ctx.state.playing:
-                st.info("Click 'Start' to begin real-time recognition")
-                st.image("https://via.placeholder.com/640x360?text=Camera+Feed+Will+Appear+Here", use_column_width=True)
-
-        with col2:
-            st.markdown("### Detected Gestures")
-            gesture_placeholder = st.empty()
-            confidence_placeholder = st.empty()
-            fps_placeholder = st.empty()
+            col1, col2 = st.columns([3, 1])
             
-            if performance_data["gesture"]:
-                last_gesture = performance_data["gesture"][-1]
-                last_confidence = performance_data["confidence"][-1]
-                gesture_placeholder.markdown(f"**Gesture**: {GESTURE_GUIDE.get(last_gesture, {}).get('emoji', '')} {last_gesture}")
-                confidence_placeholder.markdown(f"**Confidence**: {last_confidence:.2%}")
-                
-                # Calculate FPS
-                if len(performance_data["timestamp"]) > 1:
-                    fps = 1 / (performance_data["timestamp"][-1] - performance_data["timestamp"][-2])
-                    fps_placeholder.markdown(f"**FPS**: {fps:.1f}")
+            with col1:
+                st.image(processed_frame, caption="Processed Frame", use_column_width=True)
+            
+            with col2:
+                if st.session_state.performance_data["gesture"]:
+                    last_gesture = st.session_state.performance_data["gesture"][-1]
+                    last_confidence = st.session_state.performance_data["confidence"][-1]
+                    st.markdown(f"**Gesture**: {GESTURE_GUIDE.get(last_gesture, {}).get('emoji', '')} {last_gesture}")
+                    st.markdown(f"**Confidence**: {last_confidence:.2%}")
     
     with tab2:
         st.subheader("Gesture Guide")
@@ -281,8 +244,8 @@ def main():
     with tab3:
         st.subheader("Performance Analytics")
         
-        if show_analytics and performance_data["timestamp"]:
-            df = pd.DataFrame(performance_data)
+        if show_analytics and st.session_state.performance_data["timestamp"]:
+            df = pd.DataFrame(st.session_state.performance_data)
             df['time'] = pd.to_datetime(df['timestamp'], unit='s')
             
             col1, col2 = st.columns(2)
@@ -303,32 +266,8 @@ def main():
         else:
             st.info("No analytics data available yet. Use the real-time recognition to gather data.")
     
-    with tab4:
-        st.subheader("About GestureSense Pro")
-        st.markdown("""
-        <div class="feature-card">
-            <h3>🌟 Features</h3>
-            <ul>
-                <li>Real-time hand gesture recognition</li>
-                <li>Multiple gesture support with visual guide</li>
-                <li>Performance analytics dashboard</li>
-                <li>WebRTC-based video streaming</li>
-                <li>Responsive design for all devices</li>
-            </ul>
-        </div>
-        """, unsafe_allow_html=True)
-        
-        st.markdown("""
-        ### Technology Stack
-        - **Computer Vision**: MediaPipe
-        - **Machine Learning**: TensorFlow/Keras
-        - **Web Framework**: Streamlit
-        - **Visualization**: Plotly
-        - **Real-Time Communication**: WebRTC
-        """)
-    
     # Add footer
-    author_footer()
+    show_author_info()
 
 if __name__ == "__main__":
     main()
