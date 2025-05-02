@@ -19,7 +19,7 @@ st.set_page_config(
 # Initialize MediaPipe Hands
 mp_hands = mp.solutions.hands
 hands = mp_hands.Hands(
-    static_image_mode=False,
+    static_image_mode=True,
     max_num_hands=1,
     min_detection_confidence=0.5,
     min_tracking_confidence=0.5)
@@ -78,6 +78,10 @@ img_size = tuple(config['img_size'])
 
 def preprocess_image(img):
     """Preprocess image according to model requirements"""
+    # Convert grayscale to color if needed
+    if len(img.shape) == 2:
+        img = cv2.cvtColor(img, cv2.COLOR_GRAY2BGR)
+    
     img = cv2.resize(img, img_size)
     if config['preprocessing']['normalization'] == 'divide_by_255':
         img = img / 255.0
@@ -85,6 +89,10 @@ def preprocess_image(img):
 
 def process_frame(frame, confidence_threshold, show_landmarks):
     """Process a single frame for hand gesture recognition"""
+    # Convert grayscale to color if needed
+    if len(frame.shape) == 2:
+        frame = cv2.cvtColor(frame, cv2.COLOR_GRAY2BGR)
+    
     frame = cv2.flip(frame, 1)
     rgb_frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
     results = hands.process(rgb_frame)
@@ -171,6 +179,12 @@ def main():
             try:
                 image = Image.open(img_file_buffer)
                 frame = np.array(image)
+                
+                # Validate image dimensions
+                if len(frame.shape) not in (2, 3):
+                    st.error("Unsupported image format")
+                    return
+                
                 processed_frame = process_frame(frame, confidence_threshold, show_landmarks)
                 
                 col1, col2 = st.columns(2)
@@ -187,13 +201,19 @@ def main():
         uploaded_file = st.file_uploader(
             "Upload a hand gesture image",
             type=["jpg", "jpeg", "png"],
-            help="Upload an image containing a hand gesture"
+            help="Upload a color image containing a hand gesture for best results"
         )
         
         if uploaded_file is not None:
             try:
                 image = Image.open(uploaded_file)
                 frame = np.array(image)
+                
+                # Validate image dimensions
+                if len(frame.shape) not in (2, 3):
+                    st.error("Unsupported image format: expected grayscale or color image")
+                    return
+                    
                 processed_frame = process_frame(frame, confidence_threshold, show_landmarks)
                 
                 col1, col2 = st.columns(2)
@@ -204,6 +224,7 @@ def main():
                     
             except Exception as e:
                 st.error(f"Error processing image: {str(e)}")
+                st.info("Please try with a different image format (color JPG/PNG recommended)")
 
 if __name__ == "__main__":
     main()
