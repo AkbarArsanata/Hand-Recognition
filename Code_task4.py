@@ -97,7 +97,15 @@ def process_frame(frame, confidence_threshold, show_landmarks):
     rgb_frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
     results = hands.process(rgb_frame)
 
+    detection_info = {
+        'hands_detected': False,
+        'gesture': None,
+        'confidence': 0.0,
+        'hand_rect': None
+    }
+
     if results.multi_hand_landmarks:
+        detection_info['hands_detected'] = True
         for hand_landmarks in results.multi_hand_landmarks:
             h, w, _ = frame.shape
             x_min = min([lm.x for lm in hand_landmarks.landmark]) * w
@@ -112,6 +120,7 @@ def process_frame(frame, confidence_threshold, show_landmarks):
             y_max = min(h, int(y_max) + padding)
 
             hand_img = frame[y_min:y_max, x_min:x_max]
+            detection_info['hand_rect'] = (x_min, y_min, x_max, y_max)
 
             if hand_img.size == 0:
                 continue
@@ -124,22 +133,33 @@ def process_frame(frame, confidence_threshold, show_landmarks):
                 predicted_class = np.argmax(prediction)
                 confidence = np.max(prediction)
                 gesture = class_names[predicted_class]
+                
+                detection_info['gesture'] = gesture
+                detection_info['confidence'] = confidence
+                detection_info['probabilities'] = {class_names[i]: float(prediction[0][i]) 
+                                                for i in range(len(class_names))}
+
+                if confidence > confidence_threshold:
+                    cv2.rectangle(frame, (x_min, y_min), (x_max, y_max), (0, 255, 0), 2)
+                    cv2.putText(frame, f"{gesture} ({confidence:.2f})", 
+                               (x_min, y_min - 10), cv2.FONT_HERSHEY_SIMPLEX, 
+                               0.9, (0, 255, 0), 2)
             else:
                 # Demo mode with mock predictions
                 gesture = "Demo Gesture"
                 confidence = 0.85
-
-            if confidence > confidence_threshold:
-                cv2.rectangle(frame, (x_min, y_min), (x_max, y_max), (0, 255, 0), 2)
-                cv2.putText(frame, f"{gesture} ({confidence:.2f})", 
-                           (x_min, y_min - 10), cv2.FONT_HERSHEY_SIMPLEX, 
-                           0.9, (0, 255, 0), 2)
+                detection_info['gesture'] = gesture
+                detection_info['confidence'] = confidence
 
             if show_landmarks:
                 mp.solutions.drawing_utils.draw_landmarks(
                     frame, hand_landmarks, mp_hands.HAND_CONNECTIONS)
+    else:
+        # Add text when no hands are detected
+        cv2.putText(frame, "No hands detected", (50, 50), 
+                   cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 0, 255), 2)
     
-    return cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
+    return cv2.cvtColor(frame, cv2.COLOR_BGR2RGB), detection_info
 
 def main():
     st.title("👋 Real-Time Hand Gesture Recognition")
@@ -165,6 +185,17 @@ def main():
         if model is None:
             st.warning("Running in demo mode (model not loaded)")
             st.info("To use the full model, ensure 'best_model.h5' and 'model_config.json' are available")
+        
+        # Model test button
+        if st.button("Test Model"):
+            try:
+                # Create a dummy image
+                test_img = np.random.rand(*img_size, 3)
+                prediction = model.predict(np.expand_dims(test_img, axis=0))
+                st.write("Model test successful!")
+                st.write("Prediction shape:", prediction.shape)
+            except Exception as e:
+                st.error(f"Model test failed: {str(e)}")
     
     tab1, tab2 = st.tabs(["Live Camera", "Upload Image"])
     
@@ -185,13 +216,24 @@ def main():
                     st.error("Unsupported image format")
                     return
                 
-                processed_frame = process_frame(frame, confidence_threshold, show_landmarks)
+                processed_frame, detection_info = process_frame(frame, confidence_threshold, show_landmarks)
                 
                 col1, col2 = st.columns(2)
                 with col1:
                     st.image(image, caption="Original", use_column_width=True)
                 with col2:
                     st.image(processed_frame, caption="Processed", use_column_width=True)
+                
+                # Display detection results
+                if detection_info['hands_detected']:
+                    if detection_info['gesture']:
+                        st.success(f"Predicted Gesture: {detection_info['gesture']}")
+                        st.info(f"Confidence: {detection_info['confidence']:.2%}")
+                        st.json(detection_info['probabilities'])
+                    else:
+                        st.warning("Hand detected but no prediction made")
+                else:
+                    st.warning("No hands detected in the image")
                     
             except Exception as e:
                 st.error(f"Error processing frame: {str(e)}")
@@ -214,13 +256,25 @@ def main():
                     st.error("Unsupported image format: expected grayscale or color image")
                     return
                     
-                processed_frame = process_frame(frame, confidence_threshold, show_landmarks)
+                processed_frame, detection_info = process_frame(frame, confidence_threshold, show_landmarks)
                 
                 col1, col2 = st.columns(2)
                 with col1:
                     st.image(image, caption="Original", use_column_width=True)
                 with col2:
                     st.image(processed_frame, caption="Processed", use_column_width=True)
+                
+                # Display detection results
+                if detection_info['hands_detected']:
+                    if detection_info['gesture']:
+                        st.success(f"Predicted Gesture: {detection_info['gesture']}")
+                        st.info(f"Confidence: {detection_info['confidence']:.2%}")
+                        st.json(detection_info.get('probabilities', {}))
+                    else:
+                        st.warning("Hand detected but no prediction made")
+                else:
+                    st.warning("No hands detected in the image")
+                    st.info("Try uploading a clearer image with visible hand gestures")
                     
             except Exception as e:
                 st.error(f"Error processing image: {str(e)}")
