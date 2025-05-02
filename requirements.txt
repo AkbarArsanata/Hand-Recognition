@@ -12,3 +12,9 @@ pandas==1.5.3
 h5py==3.13.0
 grpcio==1.71.0
 absl-py==2.2.2
+streamlit-webrtc
+opencv-python
+tensorflow
+mediapipe
+plotly
+pandas
