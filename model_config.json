@@ -1,0 +1,30 @@
+{
+    "model_path": "best_model.h5",
+    "class_names": [
+        "c",
+        "down",
+        "fist",
+        "index",
+        "l",
+        "moved",
+        "ok",
+        "palm",
+        "thumb"
+    ],
+    "img_size": [
+        64,
+        64
+    ],
+    "input_shape": [
+        64,
+        64,
+        3
+    ],
+    "preprocessing": {
+        "normalization": "divide_by_255",
+        "resize_method": "bilinear"
+    },
+    "model_type": "CNN",
+    "author": "Ibrahim Akbar Arsanata",
+    "description": "Hand gesture recognition model"
+}
